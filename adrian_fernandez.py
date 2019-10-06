@@ -1,17 +1,24 @@
 from itertools import permutations, repeat, combinations
 from collections import Counter
 
-def gen_combinations(tasks):
+"""
+    Helpers
+"""
+def gen_combinations(tasks: list):
+    """ Generate a set of all possible tasks combinations.
+
+    Constraints:
+    1) Combinations can't be higher than max task task point (tp) value,
+    2) Sum of all combinations can't be higher than sum of tasks tp
+    """
     max_val = sum(tasks)
     combs = []
     for r in range(1, len(tasks)):
         combs += [x for x in combinations(tasks, r) if sum(x) <= max_val]
     return list(set(combs))
 
-def sum_pairs(combs, r, c):
-    return sum(combs[r]) + sum(combs[c])
-
-def validate_solution(solution, task_counter):
+def validate_solution(solution: list, task_counter: Counter):
+    """ Checks for duplicate use of tasks items in combinations."""
     sol_counter = Counter(solution)
     for item in solution:
         if sol_counter[item] > task_counter[item]:
@@ -29,7 +36,8 @@ def get_tasks_names(assigned_tp):
     return task_names
 
 def allocate_tasks(comb_tasks, target, task_counter):
-    if not validate_solution(comb_tasks, task_counter):
+    """ Tries to match all task_points from the solution, with employees."""
+    if validate_solution(comb_tasks, task_counter) is False:
         return False
 
     # Keep track of assignments
@@ -37,58 +45,66 @@ def allocate_tasks(comb_tasks, target, task_counter):
     empl_remaining = employees_tp.copy()
     total_assignments = 0
     tasks_remaining = tasks_tp.copy()
-    # print("Allocate tasks, comb_tasks:", comb_tasks)
-#     empl_assigned = [0 for e in employees]
-#     print(empl_assignments, empl_remaining)
-    e_i = 0
+
+    e_ix = 0
+    # Loop through task_points (index) in combination tasks, and employees
     for tc_ix in range(len(comb_tasks)):
-        while e_i <= len(employees_tp):
-#             print("$$", comb_tasks[tc_ix], "<?>", max(empl_remaining))
-            if comb_tasks[tc_ix] > max(empl_remaining):
-                break
+        while e_ix <= len(employees_tp):
+            # Get task_point value if, has to be lower than max employee capacity
             t_tc = comb_tasks[tc_ix]
-#             print("# EMP", e_i, employees[e_i], "Remaining:", empl_remaining, "Task", t_tc)
-            if empl_remaining[e_i] >= t_tc:
-                empl_assignments[e_i].append(t_tc)
-                empl_remaining[e_i] -= t_tc
+            if t_tc > max(empl_remaining):
+                break
+            
+            # Match task with employee, then focus on next employee. This is
+            # to achieve a more even distribution of work (as opposed to exhausting
+            # a single employee before moving to the next) 
+            if empl_remaining[e_ix] >= t_tc:
+                empl_assignments[e_ix].append(t_tc)
+                empl_remaining[e_ix] -= t_tc
                 tasks_remaining[tc_ix] = 0
                 total_assignments += t_tc
-                e_i += 1
-                if e_i == len(employees_tp):
-                    e_i = 0
+                # I'm not proud of the following lines... but YOLO 
+                e_ix += 1
+                if e_ix == len(employees_tp):
+                    e_ix = 0
                 break
-            e_i += 1
-            if e_i == len(employees_tp):
-                e_i = 0
+            e_ix += 1
+            if e_ix == len(employees_tp):
+                e_ix = 0
+
     if target == total_assignments:
         print("Target!", total_assignments, empl_assignments)
         return empl_assignments
     else:
         return False
 
-def find_combinations(combs, tasks, lower_target=0):
-    # if there is no perfect match, reduce target and start over
-
-    # Task task_point counter, for validaiton
-    task_counter = Counter(tasks)
+"""
+    Main Func
+"""
+def assign_tasks_to_workers(combs, tasks, lower_target=0):
+    """ Finds an optimal way to match tasks to employees."""
+    
     row, col = 0, len(combs)-1
-    temp = min(sum(tasks), sum(employees_tp))
-    tp_target = temp - lower_target
+    tp_target =  min(sum(tasks), sum(employees_tp)) - lower_target
+
+    # Task task_point counter used to validate task-combinations
+    task_counter = Counter(tasks)
     print("Target task_point:", tp_target, lower_target)
 
+    # Use a matrix-ish to find the combinations of possible tasks 
+    # that == the target task_point. Search moves from top-right
+    # to bottom-left until it finds a matching value.
     while row < len(combs) and col >= 0:
-        comb_value = sum_pairs(combs, row, col)
+        comb_value = sum(combs[row]) + sum(combs[col])
         tp_difference = comb_value - tp_target
-        # print("#", row, col, "->", comb_value, tp_target)
 
-        # If combination matches target taskpoint 
         if tp_difference == 0:
+            # Join task-combinations into a list
             comb_tasks = list(combs[row]) + list(combs[col])
-            # print("Bingo!", comb_value, "->", comb_tasks)            
-            employees_tasks = allocate_tasks(comb_tasks, tp_target, task_counter)
-            if employees_tasks:
-                # print("!!!!! SOLUTION ", employees_tasks)
-                # solutions.append(employees_tasks)       
+            
+            # Attempt to match this task-combination to employees
+            employees_tasks = allocate_tasks(comb_tasks,tp_target, task_counter)
+            if employees_tasks:     
                 return employees_tasks     
             col-=1
 
@@ -96,14 +112,17 @@ def find_combinations(combs, tasks, lower_target=0):
         if tp_difference < 0:
             row+=1
         # Move to a lower combination
-        elif tp_difference > 0:
+        else:
             col-=1
 
-    # If not Solution found, lower_target task_point total and start over
+    # If not Solution found, lower_target task_point and start over
     lower_target += 1
     print("*** No Solution, lower task_point target:", lower_target)
-    solution =  find_combinations(combs, tasks, lower_target)
-    return solution
+    solution =  assign_tasks_to_workers(combs, tasks, lower_target)
+    if solution:
+        return solution
+    else:
+        return None
 
 
 """
@@ -111,10 +130,10 @@ def find_combinations(combs, tasks, lower_target=0):
 """
 if __name__ == '__main__':
     # Define start values
-    tasks_tp = [6,3,2,3,5]
-    tasks_names = ["T1", "T2", "T3", "T4", "T5"]
-    employees_tp = [3,5,7]
-    employees_names = ["A", "B", "C"]
+    tasks_tp = [6, 3, 2, 8, 3, 5, 9, 13, 5, 4, 7, 2, 3, 5]
+    tasks_names = ["T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8", "T9", "T10", "T11", "T12", "T13"]
+    employees_tp = [2, 8, 5, 7, 17, 20, 18]
+    employees_names = ["A", "B", "C", "D", "E", "F"]
 
     tasks_dic = {name:val for name, val in zip(tasks_names, tasks_tp)}
     tasks_tp.sort()
@@ -128,8 +147,8 @@ if __name__ == '__main__':
     combs.sort(key=lambda x: sum(x))
     
     # call main function
-    solution = find_combinations(combs, tasks_tp)
-    
+    solution = assign_tasks_to_workers(combs, tasks_tp)
+
     print("-------RESULTS-------")
     for i in range(len(employees_names)):
         key = employees_names[i]
