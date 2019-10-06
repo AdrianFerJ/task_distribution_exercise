@@ -1,3 +1,12 @@
+"""
+Task Distribution Excercise, by Adrian Fernandez
+
+Given a list of tasks and workers, find an optima solution of distributing
+the tasks among the workers in a way that maximizes the number of tasks
+allocated, and minimizes the amount of work (in task points) for every
+given employee. 
+
+"""
 from itertools import permutations, repeat, combinations
 from collections import Counter
 
